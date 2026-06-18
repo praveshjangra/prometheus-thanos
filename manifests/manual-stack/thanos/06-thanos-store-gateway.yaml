@@ -47,6 +47,9 @@ spec:
       - name: objstore
         secret:
           secretName: thanos-objstore-config
+          items:
+          - key: thanos.yaml
+            path: objstore.yml
       - name: data
         emptyDir: {}
 ---

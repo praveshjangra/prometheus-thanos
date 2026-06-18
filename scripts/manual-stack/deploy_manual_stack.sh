@@ -81,17 +81,33 @@ wait_for_prometheus() {
   return 1
 }
 
-deploy_thanos_minio() {
+deploy_thanos_secrets() {
+  echo "=== Applying Thanos secrets (objstore + MinIO credentials) ==="
+  kubectl apply -f "$THANOS_DIR/03-objstore-secret.yaml"
   kubectl apply -f "$THANOS_DIR/01-minio.yaml"
+  kubectl -n monitoring-manual get secret thanos-objstore-config minio-credentials
+}
+
+deploy_thanos_minio() {
+  deploy_thanos_secrets
+  echo "=== Waiting for MinIO ==="
   kubectl -n monitoring-manual rollout status deploy/minio --timeout=180s
+  echo "=== MinIO bucket job ==="
   kubectl -n monitoring-manual delete job minio-create-thanos-bucket --ignore-not-found
   kubectl apply -f "$THANOS_DIR/02-minio-bucket-job.yaml"
-  kubectl -n monitoring-manual wait --for=condition=complete job/minio-create-thanos-bucket --timeout=120s
-  kubectl apply -f "$THANOS_DIR/03-objstore-secret.yaml"
+  if kubectl -n monitoring-manual wait --for=condition=complete job/minio-create-thanos-bucket --timeout=120s 2>/dev/null; then
+    echo "MinIO bucket 'thanos' ready"
+  else
+    echo "WARN: MinIO bucket job did not finish in time (secrets are already applied)." >&2
+    echo "  Fix: kubectl -n monitoring-manual logs job/minio-create-thanos-bucket" >&2
+    echo "  Retry: kubectl apply -f $THANOS_DIR/02-minio-bucket-job.yaml" >&2
+    kubectl -n monitoring-manual logs job/minio-create-thanos-bucket --tail=40 2>/dev/null || true
+  fi
 }
 
 deploy_thanos_query_stack() {
   echo "=== Deploying Thanos Query / Store / Compactor ==="
+  deploy_thanos_secrets
   kubectl apply -f "$THANOS_DIR/05-thanos-query.yaml"
   kubectl apply -f "$THANOS_DIR/06-thanos-store-gateway.yaml"
   kubectl apply -f "$THANOS_DIR/07-thanos-compactor.yaml"
@@ -116,6 +132,10 @@ fi
 
 kubectl apply -f "$STACK_DIR/00-namespace.yaml"
 
+if [[ "$WITH_THANOS" == "true" ]]; then
+  deploy_thanos_secrets
+fi
+
 USE_FULL_CRDS=true "$ROOT_DIR/scripts/manual-stack/operator-stack/install_operator_crds.sh"
 
 kubectl apply -f "$STACK_DIR/02-alertmanager-config.yaml"
@@ -123,6 +143,8 @@ kubectl apply -f "$STACK_DIR/03-alertmanager.yaml"
 
 if [[ "$WITH_THANOS" == "true" ]]; then
   deploy_thanos_minio
+else
+  echo "=== Thanos skipped (default mode). For MinIO + Thanos secrets use: $0 thanos ==="
 fi
 
 if [[ "$WITH_GRAFANA" == "true" ]]; then
