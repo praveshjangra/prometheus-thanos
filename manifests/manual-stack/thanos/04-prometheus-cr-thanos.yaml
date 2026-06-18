@@ -1,0 +1,51 @@
+# Replaces 10-operator-prometheus-cr.yaml when deploying with Thanos (./deploy_manual_stack.sh thanos).
+# Requires full Prometheus Operator CRDs (install_operator_crds.sh with USE_FULL_CRDS=true).
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: k8s
+  namespace: monitoring-manual
+  labels:
+    app.kubernetes.io/name: prometheus
+spec:
+  replicas: 1
+  serviceAccountName: prometheus-k8s
+  evaluationInterval: 30s
+  scrapeInterval: 30s
+  retention: 6h
+  enableAdminAPI: true
+  externalLabels:
+    cluster: manual-lab
+  alerting:
+    alertmanagers:
+    - namespace: monitoring-manual
+      name: alertmanager
+      port: http
+      apiVersion: v2
+  thanos:
+    objectStorageConfig:
+      name: thanos-objstore-config
+      key: thanos.yaml
+  ruleSelector: {}
+  ruleNamespaceSelector: {}
+  serviceMonitorSelector:
+    matchLabels:
+      release: manual-operator
+  serviceMonitorNamespaceSelector: {}
+  podMonitorSelector: {}
+  podMonitorNamespaceSelector: {}
+  storage:
+    volumeClaimTemplate:
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 5Gi
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi

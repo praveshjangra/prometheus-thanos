@@ -1,0 +1,55 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: status-web-rules
+  namespace: monitoring-manual
+  labels:
+    release: manual-operator
+spec:
+  groups:
+  - name: status-web.recording
+    interval: 30s
+    rules:
+    - record: job:status_web:http_requests_total:rate5m
+      expr: |
+        sum by (namespace) (
+          rate(http_request_duration_seconds_count{job="status-web"}[5m])
+        )
+    - record: job:status_web:http_requests_errors:rate5m
+      expr: |
+        sum by (namespace) (
+          rate(http_request_duration_seconds_count{job="status-web", status=~"5.."}[5m])
+        )
+  - name: status-web-alerts
+    interval: 30s
+    rules:
+    - alert: StatusWebTargetDown
+      expr: up{job="status-web"} == 0
+      for: 5m
+      labels:
+        severity: warning
+        team: payments
+        job: status-web
+        namespace: default
+      annotations:
+        summary: "status-web target is down"
+        description: "Prometheus cannot scrape status-web for 5m."
+
+    - alert: StatusWebHigh5xxRate
+      expr: |
+        (
+          sum(rate(http_request_duration_seconds_count{job="status-web",status=~"5.."}[5m]))
+          /
+          sum(rate(http_request_duration_seconds_count{job="status-web"}[5m]))
+        ) > 0.02
+        and on()
+        sum(up{job="status-web"} == 1) > 0
+      for: 10m
+      labels:
+        severity: critical
+        team: payments
+        job: status-web
+        namespace: default
+      annotations:
+        summary: "status-web high 5xx rate"
+        description: "5xx ratio is above 2% for 10m."

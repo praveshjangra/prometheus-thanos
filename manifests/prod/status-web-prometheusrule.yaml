@@ -1,0 +1,32 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: status-web-alerts
+  namespace: monitoring
+  labels:
+    release: kube-prom
+spec:
+  groups:
+  - name: status-web.availability
+    rules:
+    - alert: StatusWebTargetDown
+      expr: up{job="status-web"} == 0
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: status-web target is down
+        description: Prometheus cannot scrape status-web for 10m.
+    - alert: StatusWebHigh5xxRate
+      expr: |
+        (
+          sum(rate(http_request_duration_seconds_count{job="status-web",status=~"5.."}[5m]))
+          /
+          sum(rate(http_request_duration_seconds_count{job="status-web"}[5m]))
+        ) > 0.02
+      for: 15m
+      labels:
+        severity: critical
+      annotations:
+        summary: status-web 5xx error rate is high
+        description: 5xx ratio is above 2% for 15m.

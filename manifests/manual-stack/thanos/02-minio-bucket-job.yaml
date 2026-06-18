@@ -1,0 +1,26 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-create-thanos-bucket
+  namespace: monitoring-manual
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: mc
+        # RELEASE tag must exist on Docker Hub — 2024-06-13 exists for minio/minio but NOT for minio/mc
+        image: minio/mc:latest
+        imagePullPolicy: IfNotPresent
+        envFrom:
+        - secretRef:
+            name: minio-credentials
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          mc alias set local http://minio.monitoring-manual.svc:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
+          mc mb local/thanos --ignore-existing
+          echo "bucket thanos ready"

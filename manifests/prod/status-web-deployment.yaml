@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: status-web
+  namespace: default
+  labels:
+    app.kubernetes.io/name: status-web
+    app.kubernetes.io/component: web
+    app.kubernetes.io/part-of: monitoring-lab
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: status-web
+  template:
+    metadata:
+      labels:
+        app: status-web
+        app.kubernetes.io/name: status-web
+        app.kubernetes.io/component: web
+    spec:
+      containers:
+      - name: podinfo
+        image: ghcr.io/stefanprodan/podinfo:6.6.3
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http-metrics
+          containerPort: 9898
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: http-metrics
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: http-metrics
+          initialDelaySeconds: 15
+          periodSeconds: 20

@@ -1,0 +1,41 @@
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: k8s
+  namespace: monitoring-manual
+  labels:
+    app.kubernetes.io/name: prometheus
+spec:
+  replicas: 1
+  serviceAccountName: prometheus-k8s
+  evaluationInterval: 30s
+  scrapeInterval: 30s
+  retention: 24h
+  enableAdminAPI: true
+  # Where operator Prometheus sends firing alerts (compiled into prometheus.yml alerting block).
+  # name = Kubernetes Service metadata.name (03-alertmanager.yaml → Service "alertmanager")
+  # port = Service port NAME (not 9093) — must match spec.ports[].name on that Service
+  alerting:
+    alertmanagers:
+    - namespace: monitoring-manual
+      name: alertmanager
+      port: http
+      apiVersion: v2
+  ruleSelector: {}
+  # Empty {} = load ALL PrometheusRules in namespaces allowed by ruleNamespaceSelector.
+  # No label required on PrometheusRule (unlike serviceMonitorSelector below).
+  # Lab rules: manifests/manual-stack/13-operator-status-web-prometheusrule.yaml
+  ruleNamespaceSelector: {}
+  serviceMonitorSelector:
+    matchLabels:
+      release: manual-operator
+  serviceMonitorNamespaceSelector: {}
+  podMonitorSelector: {}
+  podMonitorNamespaceSelector: {}
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi

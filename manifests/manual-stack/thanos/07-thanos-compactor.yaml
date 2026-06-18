@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: thanos-compactor
+  namespace: monitoring-manual
+  labels:
+    app: thanos-compactor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: thanos-compactor
+  template:
+    metadata:
+      labels:
+        app: thanos-compactor
+    spec:
+      containers:
+      - name: thanos
+        image: quay.io/thanos/thanos:v0.35.1
+        args:
+        - compact
+        - --log.level=info
+        - --data-dir=/var/thanos/compact
+        - --objstore.config-file=/etc/thanos/objstore.yml
+        - --retention.resolution-raw=30d
+        - --retention.resolution-5m=90d
+        - --retention.resolution-1h=180d
+        - --delete-delay=48h
+        - --wait
+        volumeMounts:
+        - name: objstore
+          mountPath: /etc/thanos
+          readOnly: true
+        - name: data
+          mountPath: /var/thanos/compact
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 1Gi
+      volumes:
+      - name: objstore
+        secret:
+          secretName: thanos-objstore-config
+      - name: data
+        emptyDir: {}
